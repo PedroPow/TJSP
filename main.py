@@ -31,13 +31,25 @@ LOG_CHANNEL_ID = 1526638882115031060  # <-- Substitua pelo ID do seu canal de lo
 
 
 
-async def send_log(guild: discord.Guild, embed: discord.Embed):
+async def send_or_update_log(
+    guild: discord.Guild, embed: discord.Embed, message_id: int = None
+):
     log_channel = guild.get_channel(LOG_CHANNEL_ID)
-    if log_channel:
-        try:
-            await log_channel.send(embed=embed)
-        except Exception as e:
-            print(f"❌ Erro ao enviar log: {e}")
+    if not log_channel:
+        return None
+
+    try:
+        if message_id:
+            # Edita a log existente
+            msg = await log_channel.fetch_message(message_id)
+            await msg.edit(embed=embed)
+            return msg
+        else:
+            # Envia uma nova log
+            return await log_channel.send(embed=embed)
+    except Exception as e:
+        print(f"❌ Erro ao enviar/editar log: {e}")
+        return None
 
 
 # -------------------------------------------------------------
@@ -63,51 +75,38 @@ def init_db():
             user_id INTEGER,
             category TEXT,
             reason TEXT,
-            claimed_by INTEGER
+            claimed_by INTEGER,
+            log_message_id INTEGER,
+            opened_at TEXT
         )
     """)
     conn.commit()
     conn.close()
 
-def save_ticket(code, channel_id, user_id, category, reason):
+
+def set_ticket_log_info(channel_id, log_message_id, opened_at):
     conn = sqlite3.connect("tickets.db")
     cursor = conn.cursor()
-    cursor.execute("""
-        INSERT INTO tickets (ticket_code, channel_id, user_id, category, reason, claimed_by)
-        VALUES (?, ?, ?, ?, ?, NULL)
-    """, (code, channel_id, user_id, category, reason))
+    cursor.execute(
+        "UPDATE tickets SET log_message_id = ?, opened_at = ? WHERE channel_id"
+        " = ?",
+        (log_message_id, opened_at, channel_id),
+    )
     conn.commit()
     conn.close()
 
-def update_claimed(channel_id, claimed_by_id):
-    conn = sqlite3.connect("tickets.db")
-    cursor = conn.cursor()
-    cursor.execute("UPDATE tickets SET claimed_by = ? WHERE channel_id = ?", (claimed_by_id, channel_id))
-    conn.commit()
-    conn.close()
 
-def get_ticket_by_channel(channel_id):
+def get_ticket_full_data(channel_id):
     conn = sqlite3.connect("tickets.db")
     cursor = conn.cursor()
-    cursor.execute("SELECT ticket_code, user_id, category, reason, claimed_by FROM tickets WHERE channel_id = ?", (channel_id,))
+    cursor.execute(
+        "SELECT ticket_code, user_id, category, reason, claimed_by,"
+        " log_message_id, opened_at FROM tickets WHERE channel_id = ?",
+        (channel_id,),
+    )
     data = cursor.fetchone()
     conn.close()
     return data
-
-def delete_ticket_from_db(channel_id):
-    conn = sqlite3.connect("tickets.db")
-    cursor = conn.cursor()
-    cursor.execute("DELETE FROM tickets WHERE channel_id = ?", (channel_id,))
-    conn.commit()
-    conn.close()
-
-def generate_ticket_id():
-    """Gera uma ID aleatória de 7 caracteres em caixa alta (ex: VZYN4HZ)"""
-    return ''.join(random.choices(string.ascii_uppercase + string.digits, k=7))
-
-def create_simple_embed(title, description, color=0x2b2d31):
-    return discord.Embed(title=title, description=description, color=color)
-
 
 # -------------------------------------------------------------
 # MODAIS DO PAINEL ADMIN
@@ -281,10 +280,14 @@ class TicketControlView(ui.View):
         ticket_code = ticket_data[0] if ticket_data else "Desconhecido"
 
         log_embed = discord.Embed(
-            title=f"<:ticketassumido:1526748366015565904> O membro da equipe ({interaction.user.mention}) assumiu o atendimento `{ticket_code}`", color=0x5865F2
+            description=(
+                f"<:ticketassumido:1526748366015565904> Assumido por: {interaction.user.mention} (`{interaction.user.id}`)\n\n"
+                f"`{ticket_code}`"
+            ),
+            color=0x5865F2
         )
 
-        await send_log(interaction.guild, log_embed)        
+        await send_or_update_log(interaction.guild, log_embed)        
 
     @ui.button(label="Painel Admin", style=discord.ButtonStyle.secondary, emoji="<:paineladmin:1526748297564389558>⚙️", custom_id="painel_admin_btn")
     async def admin_panel(self, interaction: discord.Interaction, button: ui.Button):
@@ -303,19 +306,36 @@ class TicketControlView(ui.View):
             no_perm_embed = create_simple_embed("❌ Acesso Negado", "Apenas a equipe autorizada pode encerrar este atendimento.", 0xFFD700)
             return await interaction.response.send_message(embed=no_perm_embed, ephemeral=True)
         
-# ---------------- LOG: TICKET FECHADO ----------------
-        ticket_data = get_ticket_by_channel(interaction.channel.id)
+# ---------------- LOG: EDITAR TICKET FECHADO ----------------
+        ticket_data = get_ticket_full_data(interaction.channel.id)
+
         if ticket_data:
-            ticket_code, user_id, category, reason, claimed_by = ticket_data
-
-            author_mention = f"<@{user_id}>"
-            claimed_mention = f"<@{claimed_by}>" if claimed_by else "`Ninguém`"
-
-            log_embed = discord.Embed(
-                title=f"<:fecharticket:1526748323527262248> O membro da equipe ({interaction.user.mention}) finalizou o atendimento `{ticket_code}`", color=0xED4245
+            ticket_code, user_id, category, reason, claimed_by, log_msg_id, opened_at = (
+                ticket_data
             )
 
-            await send_log(interaction.guild, log_embed)        
+            agora_encerrado = datetime.now().strftime("%d/%m/%Y às %H:%M")
+            claimed_mention = (
+                f"<@{claimed_by}> (`{claimed_by}`)" if claimed_by else "`Ninguém`"
+            )
+
+            log_embed = discord.Embed(
+                title="<:fecharticket:1526748323527262248> Atendimento Finalizado",
+                description=(
+                    f"<:pessoas:1526764699490713662> Aberto por: <@{user_id}> (`{user_id}`)\n\n"
+                    f"<:ticketassumido:1526748366015565904> Assumido por: {claimed_mention}\n\n"
+                    f"<:pessoas:1526764699490713662> Finalizado por: {interaction.user.mention} (`{interaction.user.id}`)\n\n"
+                    f"<:222:1526738486126972929> Ticket criado: `{ticket_code}`\n\n"
+                    f"<:hora:1526766169468567612> Aberto em: `{opened_at}`\n\n"
+                    f"<:hora:1526766169468567612> Encerrado em: `{agora_encerrado}`"
+                ),
+                color=0xED4245,
+            )
+
+            # Edita a mensagem original da log no canal de logs
+            await send_or_update_log(
+                interaction.guild, log_embed, message_id=log_msg_id
+            )      
 
         close_embed = create_simple_embed("🔒 Encerrando Ticket", "Este atendimento será fechado e deletado em **5 segundos**...", 0xFFD700)
         await interaction.response.send_message(embed=close_embed, ephemeral=True)
@@ -406,24 +426,28 @@ class TicketSelectMenu(ui.Select):
 
         from datetime import datetime
 
-        # Pega o horário de abertura
-        agora = datetime.now().strftime("%d/%m/%Y %H:%M")
+        # ... (código existente de criação do canal do ticket) ...
 
-        # Pega o horário de encerramento
-        agora_encerrado = datetime.now().strftime("%d/%m/%Y %H:%M")
+        agora = datetime.now().strftime("%d/%m/%Y às %H:%M")
 
         log_embed = discord.Embed(
-            title=f"<:pessoas:1526764699490713662> Aberto por: {interaction.user.mention} ({interaction.user.id})",
-            description=
-            f"<:ticketassumido:1526748366015565904> Assumido por: `Ninguém`\n"
-            f"<:pessoas:1526764699490713662> Finalizado por: `Ninguém`\n"
-            f"Ticket criado: {ticket_code}\n"
-            f"<:hora:1526766169468567612> Aberto em: {agora}\n"
-            f"<:hora:1526766169468567612> Encerrado em: {agora_encerrado}\n",
+            title="<:baixar:1526771301065162874> Atendimento Criado",
+            description=(
+                f"<:pessoas:1526764699490713662> Aberto por: {user.mention} (`{user.id}`)\n\n"
+                f"<:ticketassumido:1526748366015565904> Assumido por: `Ninguém`\n\n"
+                f"<:pessoas:1526764699490713662> Finalizado por: `Ninguém`\n\n"
+                f"<:222:1526738486126972929> Ticket criado: `{ticket_code}`\n\n"
+                f"<:hora:1526766169468567612> Aberto em: `{agora}`\n\n"
+                f"<:hora:1526766169468567612> Encerrado em: `N/A`"
+            ),
             color=0x57F287,
         )
 
-
+        # Envia a log e grava o ID da mensagem no Banco de Dados
+        log_msg = await send_or_update_log(guild, log_embed)
+        if log_msg:
+            set_ticket_log_info(ticket_channel.id, log_msg.id, agora)
+            
         await send_log(guild, log_embed)
 
 class TicketSelectView(ui.View):
