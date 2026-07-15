@@ -5,16 +5,22 @@ import random
 import string
 import asyncio
 import sqlite3
+import os
+import re
+from dotenv import load_dotenv
 
 # Configuração de Intents
 intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True
 
+load_dotenv()
+
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 # Configurações Globais (Substitua pelas IDs do seu Discord)
-TOKEN = 'MTUyNjY2Nzg2MjQyNzU2NjI0Mg.Ga2_Os.5keMX75l5SQQ9ouTeVs4WSSRoq5n_HqFOT6-3s'
+TOKEN = os.getenv("TOKEM_TJSP")  # Token do Bot
+
 CATEGORY_ID = 1526670877373108454  # ID da Categoria onde os tickets serão criados
 STAFF_ROLE_ID = 1526624858912461002  # ID do Cargo Autorizado (Staff / Suporte / Advogado)
 BANNER_THUMBNAIL_URL = "https://cdn.discordapp.com/attachments/1525193779995480166/1526381231871365280/content.png?ex=6a57798c&is=6a56280c&hm=69ade4cea6ca76e786031fb4ac6f7f8c54ded14b44953076f2103acbf8f427bb&"  # Link da logo do seu servidor
@@ -408,4 +414,4 @@ async def setup_ticket_error(ctx, error):
         )
         await ctx.send(embed=embed, delete_after=5)
 
-bot.run(TOKEN)
+bot.run(TOKEN_TJSP)
