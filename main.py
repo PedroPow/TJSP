@@ -22,8 +22,22 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 TOKEN = os.getenv("TOKEN_TJSP")  # Token do Bot
 
 CATEGORY_ID = 1526670877373108454  # ID da Categoria onde os tickets serão criados
+
 STAFF_ROLE_ID = 1526624858912461002  # ID do Cargo Autorizado (Staff / Suporte / Advogado)
+
 BANNER_THUMBNAIL_URL = "https://cdn.discordapp.com/attachments/1525193779995480166/1526381231871365280/content.png?ex=6a57798c&is=6a56280c&hm=69ade4cea6ca76e786031fb4ac6f7f8c54ded14b44953076f2103acbf8f427bb&"  # Link da logo do seu servidor
+
+LOG_CHANNEL_ID = 1526638882115031060  # <-- Substitua pelo ID do seu canal de logs
+
+
+
+async def send_log(guild: discord.Guild, embed: discord.Embed):
+    log_channel = guild.get_channel(LOG_CHANNEL_ID)
+    if log_channel:
+        try:
+            await log_channel.send(embed=embed)
+        except Exception as e:
+            print(f"❌ Erro ao enviar log: {e}")
 
 
 # -------------------------------------------------------------
@@ -262,6 +276,16 @@ class TicketControlView(ui.View):
         notice_embed = create_simple_embed("🛠️ Atendimento Assumido", f"O atendimento foi assumido por {interaction.user.mention}.", 0xFFD700)
         await interaction.channel.send(embed=notice_embed)
 
+# ---------------- LOG: TICKET ASSUMIDO ----------------
+        ticket_data = get_ticket_by_channel(interaction.channel.id)
+        ticket_code = ticket_data[0] if ticket_data else "Desconhecido"
+
+        log_embed = discord.Embed(
+            title="<:ticketassumido:1526748366015565904> O membro da equipe {interaction.user.mention} {interaction.user.id} assumiu o atendimento `{ticket_code}`", color=0x5865F2
+        )
+
+        await send_log(interaction.guild, log_embed)        
+
     @ui.button(label="Painel Admin", style=discord.ButtonStyle.secondary, emoji="<:paineladmin:1526748297564389558>⚙️", custom_id="painel_admin_btn")
     async def admin_panel(self, interaction: discord.Interaction, button: ui.Button):
         # Checagem de permissão
@@ -278,6 +302,20 @@ class TicketControlView(ui.View):
         if not is_staff_or_admin(interaction.user):
             no_perm_embed = create_simple_embed("❌ Acesso Negado", "Apenas a equipe autorizada pode encerrar este atendimento.", 0xFFD700)
             return await interaction.response.send_message(embed=no_perm_embed, ephemeral=True)
+        
+# ---------------- LOG: TICKET FECHADO ----------------
+        ticket_data = get_ticket_by_channel(interaction.channel.id)
+        if ticket_data:
+            ticket_code, user_id, category, reason, claimed_by = ticket_data
+
+            author_mention = f"<@{user_id}>"
+            claimed_mention = f"<@{claimed_by}>" if claimed_by else "`Ninguém`"
+
+            log_embed = discord.Embed(
+                title="<:fecharticket:1526748323527262248> O membro da equipe {interaction.user.mention} {interaction.user.id} finalizou o atendimento `{ticket_code}`", color=0xED4245
+            )
+
+            await send_log(interaction.guild, log_embed)        
 
         close_embed = create_simple_embed("🔒 Encerrando Ticket", "Este atendimento será fechado e deletado em **5 segundos**...", 0xFFD700)
         await interaction.response.send_message(embed=close_embed, ephemeral=True)
@@ -363,6 +401,21 @@ class TicketSelectMenu(ui.Select):
 
         created_embed = create_simple_embed("✅ Ticket Criado", f"Seu atendimento foi aberto com sucesso em {ticket_channel.mention}.", 0xFFD700)
         await interaction.followup.send(embed=created_embed, ephemeral=True)
+
+# ---------------- LOG: TICKET CRIADO ----------------
+        log_embed = discord.Embed(
+            title="<:pessoas:1526764699490713662> Aberto por: {interaction.user.mention} ({interaction.user.id})",
+            description=
+            f"<:ticketassumido:1526748366015565904> Assumido por: `Ninguém`\n"
+            f"<:pessoas:1526764699490713662> Finalizado por: `Ninguém`\n"
+            f"Ticket criado: {ticket_code}\n"
+            f"<:hora:1526766169468567612> Aberto em: {ticket_channel.mention}\n"
+            f"<:hora:1526766169468567612> Encerrado em: `N/A`\n",
+            color=0x57F287,
+        )
+
+
+        await send_log(guild, log_embed)
 
 class TicketSelectView(ui.View):
     def __init__(self):
