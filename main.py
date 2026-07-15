@@ -384,7 +384,7 @@ class TicketSelectMenu(ui.Select):
             staff_role: PermissionOverwrite(view_channel=True, send_messages=True, manage_messages=True)
         }
 
-        ticket_code = generate_ticket_id()
+        ticket_code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=7))
         channel_name = f"🎟️・{ticket_code.lower()}"
 
         ticket_channel = await guild.create_text_channel(name=channel_name, category=category, overwrites=overwrites)
