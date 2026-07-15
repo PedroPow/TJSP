@@ -92,31 +92,37 @@ def init_db():
     conn.commit()
     conn.close()
 
-
-def set_ticket_log_info(channel_id, log_message_id, opened_at):
+def save_ticket(code, channel_id, user_id, category, reason):
     conn = sqlite3.connect("tickets.db")
     cursor = conn.cursor()
-    cursor.execute(
-        "UPDATE tickets SET log_message_id = ?, opened_at = ? WHERE channel_id"
-        " = ?",
-        (log_message_id, opened_at, channel_id),
-    )
+    cursor.execute("""
+        INSERT INTO tickets (ticket_code, channel_id, user_id, category, reason, claimed_by)
+        VALUES (?, ?, ?, ?, ?, NULL)
+    """, (code, channel_id, user_id, category, reason))
     conn.commit()
     conn.close()
 
-
-def get_ticket_full_data(channel_id):
+def update_claimed(channel_id, claimed_by_id):
     conn = sqlite3.connect("tickets.db")
     cursor = conn.cursor()
-    cursor.execute(
-        "SELECT ticket_code, user_id, category, reason, claimed_by,"
-        " log_message_id, opened_at FROM tickets WHERE channel_id = ?",
-        (channel_id,),
-    )
+    cursor.execute("UPDATE tickets SET claimed_by = ? WHERE channel_id = ?", (claimed_by_id, channel_id))
+    conn.commit()
+    conn.close()
+
+def get_ticket_by_channel(channel_id):
+    conn = sqlite3.connect("tickets.db")
+    cursor = conn.cursor()
+    cursor.execute("SELECT ticket_code, user_id, category, reason, claimed_by FROM tickets WHERE channel_id = ?", (channel_id,))
     data = cursor.fetchone()
     conn.close()
     return data
 
+def delete_ticket_from_db(channel_id):
+    conn = sqlite3.connect("tickets.db")
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM tickets WHERE channel_id = ?", (channel_id,))
+    conn.commit()
+    conn.close()
 # -------------------------------------------------------------
 # MODAIS DO PAINEL ADMIN
 # -------------------------------------------------------------
