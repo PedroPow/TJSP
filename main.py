@@ -19,7 +19,7 @@ load_dotenv()
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 # Configurações Globais (Substitua pelas IDs do seu Discord)
-TOKEN = os.getenv("TOKEM_TJSP")  # Token do Bot
+TOKEN = os.getenv("TOKEN_TJSP")  # Token do Bot
 
 CATEGORY_ID = 1526670877373108454  # ID da Categoria onde os tickets serão criados
 STAFF_ROLE_ID = 1526624858912461002  # ID do Cargo Autorizado (Staff / Suporte / Advogado)
@@ -414,4 +414,5 @@ async def setup_ticket_error(ctx, error):
         )
         await ctx.send(embed=embed, delete_after=5)
 
-bot.run(TOKEN_TJSP)
+print(TOKEN)  # Adicione esta linha para depuração do token
+bot.run(TOKEN)
