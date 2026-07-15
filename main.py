@@ -8,6 +8,15 @@ import sqlite3
 import os
 import re
 from dotenv import load_dotenv
+import random
+import string
+
+# -------------------------------------------------------------
+# FUNÇÃO PARA GERAR O ID DO TICKET
+# -------------------------------------------------------------
+def generate_ticket_id():
+    """Gera uma ID aleatória de 7 caracteres em caixa alta (ex: VZYN4HZ)"""
+    return "".join(random.choices(string.ascii_uppercase + string.digits, k=7))
 
 # Configuração de Intents
 intents = discord.Intents.default()
@@ -21,7 +30,7 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 # Configurações Globais (Substitua pelas IDs do seu Discord)
 TOKEN = os.getenv("TOKEN_TJSP")  # Token do Bot
 
-CATEGORY_ID = 1526670877373108454  # ID da Categoria onde os tickets serão criados
+CATEGORY_ID = 1526634789967237151  # ID da Categoria onde os tickets serão criados
 
 STAFF_ROLE_ID = 1526624858912461002  # ID do Cargo Autorizado (Staff / Suporte / Advogado)
 
