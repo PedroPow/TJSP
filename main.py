@@ -281,7 +281,7 @@ class TicketControlView(ui.View):
         ticket_code = ticket_data[0] if ticket_data else "Desconhecido"
 
         log_embed = discord.Embed(
-            title="<:ticketassumido:1526748366015565904> O membro da equipe {interaction.user.mention} {interaction.user.id} assumiu o atendimento `{ticket_code}`", color=0x5865F2
+            title=f"<:ticketassumido:1526748366015565904> O membro da equipe {interaction.user.mention} {interaction.user.id} assumiu o atendimento `{ticket_code}`", color=0x5865F2
         )
 
         await send_log(interaction.guild, log_embed)        
@@ -312,7 +312,7 @@ class TicketControlView(ui.View):
             claimed_mention = f"<@{claimed_by}>" if claimed_by else "`Ninguém`"
 
             log_embed = discord.Embed(
-                title="<:fecharticket:1526748323527262248> O membro da equipe {interaction.user.mention} {interaction.user.id} finalizou o atendimento `{ticket_code}`", color=0xED4245
+                title=f"<:fecharticket:1526748323527262248> O membro da equipe {interaction.user.mention} {interaction.user.id} finalizou o atendimento `{ticket_code}`", color=0xED4245
             )
 
             await send_log(interaction.guild, log_embed)        
